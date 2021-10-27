@@ -35,7 +35,6 @@ pub struct NearLotto {
 
 impl Default for NearLotto {
   fn default() -> Self {
-      // records: LookupMap::new(b"a".to_vec()),
       Self {
         owner_id: env::current_account_id(),
         records: LookupMap::new(b"a".to_vec()),
@@ -63,16 +62,19 @@ impl NearLotto {
     }
 
     #[payable]
+    pub fn get_attached(&mut self) -> Balance {
+        env::attached_deposit()
+    } 
+
+    #[payable]
     pub fn enter_draw(&mut self){
         let attached = env::attached_deposit();
-        // if attached == self.entry_fee{
-        //     env::log(format!("money mtaches add entry").as_bytes());
-        //     self.prize_pool = self.prize_pool + (env::attached_deposit()/4)*3;
-        //     //self.entries.push(&near_sdk::env::signer_account_id());
-        // }else{
-        //     panic!("Entry Fee not enough!!");
-        // }
-        env::log(format!("Entering the lottery").as_bytes());
+        assert!(attached >= self.entry_fee, "Entry fee not enough");
+        env::log(format!("money matches, add entry").as_bytes());
+        self.prize_pool = self.prize_pool + (env::attached_deposit()/4)*3;
+        //self.entries.push(&near_sdk::env::signer_account_id());
+
+        env::log(format!("{} Entering the lottery", env::signer_account_id()).as_bytes());
     }
 
     pub fn get_prize_pool(self) -> Balance{
@@ -176,6 +178,15 @@ mod tests {
         testing_env!(context);
         let contract = NearLotto::default();
         let prize = contract.get_prize_pool();
+        println!("the Prize is: {}", prize)
+    }
+
+    #[test]
+    fn get_the_attached(){
+        let context = get_context(vec![], true);
+        testing_env!(context);
+        let mut contract = NearLotto::default();
+        let prize = contract.get_attached();
         println!("the Prize is: {}", prize)
     }
 }

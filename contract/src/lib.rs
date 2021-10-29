@@ -13,7 +13,7 @@
 
 // To conserve gas, efficient serialization is achieved through Borsh (http://borsh.io/)
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, setup_alloc, AccountId, Balance};
+use near_sdk::{env, near_bindgen, setup_alloc, AccountId, Balance,json_types::{ U128, Base58PublicKey }};
 use near_sdk::collections::{LookupMap, Vector};
 
 setup_alloc!();
@@ -27,7 +27,6 @@ const ONE_NEAR:u128 = 1_000_000_000_000_000_000_000_000;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct NearLotto {
     owner_id: AccountId,
-    records: LookupMap<String, String>,
     //entries: Vector<AccountId>, 
     entry_fee: Balance,
     prize_pool: Balance 
@@ -37,7 +36,6 @@ impl Default for NearLotto {
   fn default() -> Self {
       Self {
         owner_id: env::current_account_id(),
-        records: LookupMap::new(b"a".to_vec()),
         //entries: Vector::new(),
         entry_fee: ONE_NEAR, 
         prize_pool: 0,
@@ -53,8 +51,7 @@ impl NearLotto {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
-            records: LookupMap::new(b"a".to_vec()),
-            //entries: Vector::new(),
+            entries: Vector::new(),
             entry_fee: ONE_NEAR, 
             prize_pool: 0,
         }
@@ -81,24 +78,11 @@ impl NearLotto {
         return self.prize_pool;
     }
 
-    pub fn set_greeting(&mut self, message: String) {
-        let account_id = env::signer_account_id();
-
-        // Use env::log to record logs permanently to the blockchain!
-        env::log(format!("Saving greeting '{}' for account '{}'", message, account_id,).as_bytes());
-
-        self.records.insert(&account_id, &message);
-    }
 
     // `match` is similar to `switch` in other languages; here we use it to default to "Hello" if
     // self.records.get(&account_id) is not yet defined.
     // Learn more: https://doc.rust-lang.org/book/ch06-02-match.html#matching-with-optiont
-    pub fn get_greeting(&self, account_id: String) -> String {
-        match self.records.get(&account_id) {
-            Some(greeting) => greeting,
-            None => "Hello".to_string(),
-        }
-    }
+
 }
 
 /*
@@ -131,7 +115,7 @@ mod tests {
             account_balance: 0,
             account_locked_balance: 0,
             storage_usage: 0,
-            attached_deposit: 15,
+            attached_deposit: ONE_NEAR,
             prepaid_gas: 10u64.pow(18),
             random_seed: vec![0, 1, 2],
             is_view,
@@ -141,52 +125,29 @@ mod tests {
     }
 
     #[test]
-    fn set_then_get_greeting() {
-        let context = get_context(vec![], false);
-        testing_env!(context);
-        let mut contract = NearLotto::default();
-        contract.set_greeting("howdy".to_string());
-        assert_eq!(
-            "howdy".to_string(),
-            contract.get_greeting("bob_near".to_string())
-        );
-    }
-
-    #[test]
-    fn get_default_greeting() {
-        let context = get_context(vec![], true);
-        testing_env!(context);
-        let contract = NearLotto::default();
-        // this test did not call set_greeting so should return the default "Hello" greeting
-        assert_eq!(
-            "Hello".to_string(),
-            contract.get_greeting("francis.near".to_string())
-        );
-    }
-
-    #[test]
     fn enter_the_draw() {
-        let context = get_context(vec![], true);
+        let mut context = get_context(vec![], false);
+        context.attached_deposit = ONE_NEAR;
         testing_env!(context);
         let mut contract = NearLotto::default();
         contract.enter_draw();
     }
 
     #[test]
-    fn get_the_prize_pool(){
+    fn get_the_prize_pool() {
         let context = get_context(vec![], true);
         testing_env!(context);
         let contract = NearLotto::default();
         let prize = contract.get_prize_pool();
-        println!("the Prize is: {}", prize)
+        println!("the Prize is: {}", prize);
     }
 
     #[test]
     fn get_the_attached(){
-        let context = get_context(vec![], true);
+        let context = get_context(vec![], false);
         testing_env!(context);
         let mut contract = NearLotto::default();
         let prize = contract.get_attached();
-        println!("the Prize is: {}", prize)
+        println!("the Attached is: {}", prize)
     }
 }

@@ -22,7 +22,8 @@ beforeAll(async function () {
   }
 })
 
-test('get_greeting', async () => {
-  const message = await window.contract.get_greeting({ account_id: window.accountId })
+test('get_prize_pool', async () => {
+  const message = await window.contract.get_prize_pool()
+  console.log(message)
   expect(message).toEqual('Hello')
 })

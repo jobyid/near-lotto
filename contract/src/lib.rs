@@ -13,12 +13,13 @@
 
 // To conserve gas, efficient serialization is achieved through Borsh (http://borsh.io/)
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, setup_alloc, AccountId, Balance,json_types::{ U128, Base58PublicKey }};
-use near_sdk::collections::{LookupMap, Vector};
-
+use near_sdk::{env, near_bindgen, setup_alloc, Promise, AccountId, Balance,json_types::{ U128, Base58PublicKey }};
+use near_sdk::collections::{UnorderedMap, Vector};
+use near_sdk::serde::Serialize;
 setup_alloc!();
 
 const ONE_NEAR:u128 = 1_000_000_000_000_000_000_000_000;
+const max_entries:u64 = 18446744073709551615;
 
 
 // Structs in Rust are similar to other languages, and may include impl keyword as shown below
@@ -27,18 +28,22 @@ const ONE_NEAR:u128 = 1_000_000_000_000_000_000_000_000;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct NearLotto {
     owner_id: AccountId,
-    //entries: Vector<AccountId>, 
+    entries: UnorderedMap<u64, AccountId>,//Vector<AccountId>, 
     entry_fee: Balance,
-    prize_pool: Balance 
+    prize_pool: Balance, 
+    winner: AccountId, 
+    closed: bool
 }
 
 impl Default for NearLotto {
   fn default() -> Self {
       Self {
         owner_id: env::current_account_id(),
-        //entries: Vector::new(),
+        entries: UnorderedMap::new(b"entries".to_vec()), //Vector::new(b'e'),
         entry_fee: ONE_NEAR, 
         prize_pool: 0,
+        winner: "".to_string(),
+        closed: false
     }
   }
 }
@@ -51,9 +56,11 @@ impl NearLotto {
         assert!(!env::state_exists(), "Already initialized");
         Self {
             owner_id,
-            entries: Vector::new(),
+            entries: UnorderedMap::new(b"entries".to_vec()),//Vector::new(b'e'),
             entry_fee: ONE_NEAR, 
             prize_pool: 0,
+            winner: "".to_string(),
+            closed: false 
         }
 
     }
@@ -67,17 +74,50 @@ impl NearLotto {
     pub fn enter_draw(&mut self){
         let attached = env::attached_deposit();
         assert!(attached >= self.entry_fee, "Entry fee not enough");
+        assert!(self.entries.len() < max_entries, "Entries are full");
         env::log(format!("money matches, add entry").as_bytes());
         self.prize_pool = self.prize_pool + (env::attached_deposit()/4)*3;
-        //self.entries.push(&near_sdk::env::signer_account_id());
-
+        let k = self.entries.len();
+        self.entries.insert(&k, &near_sdk::env::signer_account_id());
         env::log(format!("{} Entering the lottery", env::signer_account_id()).as_bytes());
+    }
+
+    pub fn pick_winner(&mut self){
+        let rand_array = [*env::random_seed().get(0).unwrap(),*env::random_seed().get(2).unwrap(),*env::random_seed().get(3).unwrap(), *env::random_seed().get(4).unwrap(),*env::random_seed().get(5).unwrap()];
+        let len:u128 = self.entries.len() as u128;
+        let rand = (rand_array[0] + rand_array[1] + rand_array[2] + rand_array[3]+ rand_array[4]) as u128;
+        let keys = self.entries.keys_as_vector();
+        let win_key = keys.get((rand%len)as u64);
+        let winner;
+        match win_key {
+            Some(x) => winner = self.entries.get(&x),
+            None => panic!("Arh no winner")
+        }
+        match winner{
+            Some(x) => self.winner = x,
+            None => panic!(" not got a winner")
+        }
+        let win = &self.winner;
+        assert!(win != "", "No winnner lets get out of here");
+        self.closed = true;
+        Promise::new(win.to_string()).transfer(self.prize_pool);
+    }
+
+    pub fn get_closed(self) -> bool {
+        self.closed 
+    }
+
+    pub fn get_winner(self) -> AccountId {
+        self.winner
     }
 
     pub fn get_prize_pool(self) -> Balance{
         return self.prize_pool;
     }
 
+    pub fn get_entriies(self) -> UnorderedMap<u64,AccountId> {
+        self.entries
+    }
 
     // `match` is similar to `switch` in other languages; here we use it to default to "Hello" if
     // self.records.get(&account_id) is not yet defined.
@@ -143,11 +183,11 @@ mod tests {
     }
 
     #[test]
-    fn get_the_attached(){
-        let context = get_context(vec![], false);
+    fn get_the_entires() {
+        let context = get_context(vec![], true);
         testing_env!(context);
-        let mut contract = NearLotto::default();
-        let prize = contract.get_attached();
-        println!("the Attached is: {}", prize)
+        let contract = NearLotto::default();
+        let entries = contract.get_entriies();
+        println!("the Entries are: {:?}", entries.values_as_vector());
     }
 }

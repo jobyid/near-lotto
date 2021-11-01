@@ -207,6 +207,15 @@ mod tests {
     }
 
     #[test]
+    fn make_rand(){
+        let mut context = get_context(vec![], false);
+        context.attached_deposit = ONE_NEAR;
+        testing_env!(context);
+        let mut contract = NearLotto::new(env::signer_account_id());
+        contract.make_rand();
+    }
+
+    #[test]
     fn enter_the_draw() {
         let mut context = get_context(vec![], false);
         context.attached_deposit = ONE_NEAR;

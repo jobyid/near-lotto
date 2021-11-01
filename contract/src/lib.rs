@@ -84,7 +84,7 @@ impl NearLotto {
         assert!(env::signer_account_id() == self.owner_id, "Not the contract owner so stop right there");
         //let rand_array = [*env::random_seed().get(0).unwrap_or(&0),*env::random_seed().get(2).unwrap_or(&0),*env::random_seed().get(3).unwrap_or(&0), *env::random_seed().get(4).unwrap_or(&0),*env::random_seed().get(5).unwrap_or(&0)];
         let len:u128 = self.entries.len() as u128;
-        let rand = random_u128(); //(rand_array[0] + rand_array[1] + rand_array[2] + rand_array[3]+ rand_array[4]) as u128;
+        let rand: u128 = random_u128(); //(rand_array[0] + rand_array[1] + rand_array[2] + rand_array[3]+ rand_array[4]) as u128;
         self.rand = rand;
         println!("Rand is {:?}", rand);
         println!("len is {:?}", len);
@@ -94,18 +94,7 @@ impl NearLotto {
         }
         let win = self.entries.get(i);
         println!("win is {:?}", win);
-        // let keys = self.entries.keys_as_vector();
-        // let win_key = keys.get((rand%len)as u64);
-        // let winner;
-        // match win_key {
-        //     Some(x) => winner = self.entries.get(&x),
-        //     None => panic!("Arh no winner")
-        // }
-        // match winner{
-        //     Some(x) => self.winner = x,
-        //     None => panic!(" not got a winner")
-        // }
-        // let win = &self.winner;
+        
         assert!(!win.is_none(), "No winnner lets get out of here");
         self.closed = true;
         match win {
@@ -125,6 +114,11 @@ impl NearLotto {
         //owner only function
         assert!(env::signer_account_id() == self.owner_id, "Not the contract owner so stop right there");
         Promise::new(out).transfer(env::account_balance());
+    }
+
+    pub fn make_rand(&mut self)->u128{
+        self.rand = random_u128();
+        self.rand
     }
 
     pub fn get_closed(self) -> bool {
@@ -151,9 +145,7 @@ fn random_u128() -> u128 {
     let random_seed = env::random_seed(); // len 32
     println!("Random seed is {:?}", random_seed.to_vec());
     // using first 16 bytes (doesn't affect randomness)
-    
     as_u128(random_seed.get(..16).unwrap())
-    
 }
 
 fn as_u128( arr: &[u8]) -> u128 {
@@ -261,7 +253,8 @@ mod tests {
         contract.enter_draw();
         // let prize = contract.get_prize_pool();
         // println!("the Prize is: {}", prize);
-        contract.pick_winner();
+        //contract.pick_winner();
+        contract.make_rand();
         println!("The winner is: {:?}", contract.winner);
         println!("They have won: {:?}", contract.prize_pool);
         println!("The rand is {:?}", contract.rand);

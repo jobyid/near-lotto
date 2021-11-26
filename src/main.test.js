@@ -31,7 +31,7 @@ beforeAll(async function () {
 // });
 test('new', async () => {
   let contract = await window.contract.new({owner_id: window.accountId})
-  await window.contract.enter_draw()
+  await window.contract.enter_draw({},300000000000000,1000000000000000000000000)
   const new_lotto = await window.contract.get_prize_pool()
   console.log("Something seems to have happened")
   console.log(new_lotto)

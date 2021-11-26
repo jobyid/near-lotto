@@ -1,6 +1,6 @@
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, setup_alloc, Promise, AccountId, Balance};//,json_types::{ U128, Base58PublicKey }};
+use near_sdk::{env, near_bindgen, setup_alloc, Promise, AccountId, Balance,json_types::{ U128, Base58PublicKey }};
 use near_sdk::collections::{ Vector};
 //use near_sdk::serde::Serialize;
 setup_alloc!();
@@ -43,7 +43,6 @@ impl NearLotto {
             closed: false, 
             rand: 78
         }
-        
     }
 
     #[payable]
@@ -53,6 +52,7 @@ impl NearLotto {
 
     #[payable]
     pub fn enter_draw(&mut self){
+        // charge some storage fee 
         let attached = env::attached_deposit();
         assert!(attached >= self.entry_fee, "Entry fee not enough");
         assert!(self.entries.len() < MAX_ENTRIES, "Entries are full");
@@ -96,6 +96,7 @@ impl NearLotto {
     pub fn collect_charity(self, out:AccountId){
         //owner only function
         assert!(env::signer_account_id() == self.owner_id, "Not the contract owner so stop right there");
+        // calculate the stortage and minus from the balance with some buffer. 
         Promise::new(out).transfer(env::account_balance());
     }
 
@@ -113,7 +114,7 @@ impl NearLotto {
     }
 
     pub fn get_prize_pool(self) -> Balance{
-        return self.prize_pool;
+        self.prize_pool
     }
 
     pub fn get_entries(self) -> u64 {

@@ -96,7 +96,7 @@ impl NearLotto {
     pub fn collect_charity(self, out:AccountId){
         //owner only function
         assert!(env::signer_account_id() == self.owner_id, "Not the contract owner so stop right there");
-        // calculate the stortage and minus from the balance with some buffer. 
+        // calculate the storage and minus from the balance with some buffer. 
         Promise::new(out).transfer(env::account_balance());
     }
 

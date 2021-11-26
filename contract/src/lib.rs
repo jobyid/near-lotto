@@ -1,8 +1,4 @@
-/* Learn more about writing NEAR smart contracts with Rust:
- * https://github.com/near/near-sdk-rs
- */
 
-// To conserve gas, efficient serialization is achieved through Borsh (http://borsh.io/)
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, setup_alloc, Promise, AccountId, Balance};//,json_types::{ U128, Base58PublicKey }};
 use near_sdk::collections::{ Vector};
@@ -14,9 +10,6 @@ setup_alloc!();
 const ONE_NEAR:u128 = 1_000_000_000_000_000_000_000_000;
 const MAX_ENTRIES:u64 = 18446744073709551615;
 
-
-// Structs in Rust are similar to other languages, and may include impl keyword as shown below
-// Note: the names of the structs are not important when calling the smart contract, but the function names are
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct NearLotto {
@@ -33,16 +26,6 @@ impl Default for NearLotto {
     fn default() -> Self {
         panic!("Should be initialized before usage")
     }
-//   fn default() -> Self {
-//       Self {
-//         owner_id: env::current_account_id(),
-//         entries: UnorderedMap::new(b"entries".to_vec()), //Vector::new(b'e'),
-//         entry_fee: ONE_NEAR, 
-//         prize_pool: 0,
-//         winner: "".to_string(),
-//         closed: false
-//     }
-//   }
 }
 
 #[near_bindgen]
@@ -60,7 +43,7 @@ impl NearLotto {
             closed: false, 
             rand: 78
         }
-
+        
     }
 
     #[payable]
@@ -74,8 +57,8 @@ impl NearLotto {
         assert!(attached >= self.entry_fee, "Entry fee not enough");
         assert!(self.entries.len() < MAX_ENTRIES, "Entries are full");
         env::log(format!("money matches, add entry").as_bytes());
-        self.prize_pool = self.prize_pool + (env::attached_deposit()/4)*3;
-        //let k = self.entries.len();
+        self.prize_pool = self.prize_pool + (env::attached_deposit()/4)*3; // 75% of entries fees goes into prize pool 
+        
         self.entries.push(&env::signer_account_id()); //self.entries.insert(&k, &near_sdk::env::signer_account_id());
         env::log(format!("{} Entering the lottery", env::signer_account_id()).as_bytes());
     }
@@ -103,7 +86,7 @@ impl NearLotto {
         }
         assert!(!self.winner.is_empty(),"No winner WTF");
         println!("the winner is {:?}", self.winner);
-        //Promise::new(self.winner.to_string()).transfer(self.prize_pool);
+        Promise::new(self.winner.to_string()).transfer(self.prize_pool);
     }
 
     // pub fn winings_transfer_manual(self, winner: AccountId) {
@@ -206,14 +189,14 @@ mod tests {
         }
     }
 
-    #[test]
-    fn make_rand(){
-        let mut context = get_context(vec![], false);
-        context.attached_deposit = ONE_NEAR;
-        testing_env!(context);
-        let mut contract = NearLotto::new(env::signer_account_id());
-        contract.make_rand();
-    }
+    // #[test]
+    // fn make_rand(){
+    //     let mut context = get_context(vec![], false);
+    //     context.attached_deposit = ONE_NEAR;
+    //     testing_env!(context);
+    //     let mut contract = NearLotto::new(env::signer_account_id());
+    //     contract.make_rand();
+    // }
 
     #[test]
     fn enter_the_draw() {
@@ -253,19 +236,19 @@ mod tests {
         let entries = contract.get_entries();
         println!("the Entries are: {:?}", entries);
     }
-    #[test]
-    fn new_enter_winner(){
-        let context = get_context(vec![], false);
-        testing_env!(context);
-        let mut contract = NearLotto::new(env::signer_account_id());
-        println!("Enter");
-        contract.enter_draw();
-        // let prize = contract.get_prize_pool();
-        // println!("the Prize is: {}", prize);
-        //contract.pick_winner();
-        contract.make_rand();
-        println!("The winner is: {:?}", contract.winner);
-        println!("They have won: {:?}", contract.prize_pool);
-        println!("The rand is {:?}", contract.rand);
-    }
+    // #[test]
+    // fn new_enter_winner(){
+    //     let context = get_context(vec![], false);
+    //     testing_env!(context);
+    //     let mut contract = NearLotto::new(env::signer_account_id());
+    //     println!("Enter");
+    //     contract.enter_draw();
+    //     // let prize = contract.get_prize_pool();
+    //     // println!("the Prize is: {}", prize);
+    //     //contract.pick_winner();
+    //     contract.make_rand();
+    //     println!("The winner is: {:?}", contract.winner);
+    //     println!("They have won: {:?}", contract.prize_pool);
+    //     println!("The rand is {:?}", contract.rand);
+    // }
 }   

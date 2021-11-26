@@ -1,9 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 # Developer note: near.gitignore will be renamed to .gitignore upon project creation
 # dependencies
+package-lock.json
 /node_modules
 /.pnp
 .pnp.js
+/out
 
 # build
 /out
@@ -11,6 +13,14 @@
 
 # keys
 /neardev
+
+#cache
+.cache
+.parcel-cache
+
+#contracts
+target
+out
 
 # testing
 /coverage

@@ -1,7 +1,7 @@
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, setup_alloc, Promise, AccountId, Balance,json_types::{ U128, Base58PublicKey }};
-use near_sdk::collections::{ Vector};
+use near_sdk::collections::{ Vector, UnorderedMap};
 //use near_sdk::serde::Serialize;
 setup_alloc!();
 //#[global_allocator]
@@ -12,37 +12,59 @@ const MAX_ENTRIES:u64 = 18446744073709551615;
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
+pub struct LottoList{
+    owner_id: AccountId,
+    lotteries: UnorderedMap<u64,NearLotto>,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
 pub struct NearLotto {
+    lotto_id: u64,
     owner_id: AccountId,
     entries: Vector<AccountId>, //UnorderedMap<u64, AccountId>,
     entry_fee: Balance,
     prize_pool: Balance, 
+    climate_pool: Balance,
     winner: AccountId, 
     closed: bool, 
-    rand: u128
+    rand: u128, 
+    close_date_time: u64
 }
 
-impl Default for NearLotto {
+impl Default for LottoList {
     fn default() -> Self {
         panic!("Should be initialized before usage")
     }
 }
 
 #[near_bindgen]
-impl NearLotto {
+impl LottoList {
     #[init]
     pub fn new(owner_id: AccountId) -> Self {
         assert!(env::is_valid_account_id(owner_id.as_bytes()), "Invalid owner account");
         assert!(!env::state_exists(), "Already initialized");
+        
         Self {
             owner_id,
+            lotteries: UnorderedMap::new(b'e')
+        } 
+    }
+
+    pub fn add_lotto(&mut self, owner_id: AccountId, entry_fee:u8, close_date_time: u64){
+        assert!(self.owner_id == env::signer_account_id(), "Only account owner cna make more lottos");
+        let lotto = NearLotto {
+            lotto_id: self.lotteries.len(),
+            owner_id,
             entries: Vector::new(b'e'),  //UnorderedMap::new(b"entries".to_vec()),
-            entry_fee: ONE_NEAR, 
-            prize_pool: ONE_NEAR,
+            entry_fee: (entry_fee as u128) * ONE_NEAR, 
+            prize_pool: 0,
+            climate_pool:0,
             winner: "".to_string(),
             closed: false, 
-            rand: 78
-        }
+            rand: 78,
+            close_date_time: close_date_time
+        };
+        self.lotteries.insert(&self.lotteries.len(),&lotto);
     }
 
     #[payable]
@@ -51,75 +73,97 @@ impl NearLotto {
     } 
 
     #[payable]
-    pub fn enter_draw(&mut self){
+    pub fn enter_draw(&mut self, lotto_id:u32){
         // charge some storage fee 
+        let mut lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
         let attached = env::attached_deposit();
-        assert!(attached >= self.entry_fee, "Entry fee not enough");
-        assert!(self.entries.len() < MAX_ENTRIES, "Entries are full");
+        assert!(lotto.closed == false, "Lotto closed");
+        assert!(attached >= lotto.entry_fee, "Entry fee not enough");
+        assert!(lotto.entries.len() < MAX_ENTRIES, "Entries are full");
         env::log(format!("money matches, add entry").as_bytes());
-        self.prize_pool = self.prize_pool + (env::attached_deposit()/4)*3; // 75% of entries fees goes into prize pool 
-        
-        self.entries.push(&env::signer_account_id()); //self.entries.insert(&k, &near_sdk::env::signer_account_id());
+        lotto.prize_pool = lotto.prize_pool + (env::attached_deposit()/4)*3; // 75% of entries fees goes into prize pool 
+        lotto.climate_pool = lotto.climate_pool + (env::attached_deposit()/4)*3; //25% of entries go to climate change
+        lotto.entries.push(&env::signer_account_id()); //self.entries.insert(&k, &near_sdk::env::signer_account_id());
         env::log(format!("{} Entering the lottery", env::signer_account_id()).as_bytes());
+        self.lotteries.insert(&(lotto_id as u64), &lotto);
     }
 
-    pub fn pick_winner(&mut self){
+    pub fn pick_winner(&mut self, lotto_id:u32) -> String{
+        //assert close date is before now 
+
         assert!(env::signer_account_id() == self.owner_id, "Not the contract owner so stop right there");
-        //let rand_array = [*env::random_seed().get(0).unwrap_or(&0),*env::random_seed().get(2).unwrap_or(&0),*env::random_seed().get(3).unwrap_or(&0), *env::random_seed().get(4).unwrap_or(&0),*env::random_seed().get(5).unwrap_or(&0)];
-        let len:u128 = self.entries.len() as u128;
+        let mut lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        let now = env::block_timestamp();
+        assert!(lotto.close_date_time < now, "Wait until cloase date and time is passed");
+        let len:u128 = lotto.entries.len() as u128;
         let rand: u128 = random_u128(); //(rand_array[0] + rand_array[1] + rand_array[2] + rand_array[3]+ rand_array[4]) as u128;
-        self.rand = rand;
+        lotto.rand = rand;
         println!("Rand is {:?}", rand);
         println!("len is {:?}", len);
         let mut i = (rand%len)as u64;
-        if i == self.entries.len(){
+        if i == lotto.entries.len(){
             i = i-1
         }
-        let win = self.entries.get(i);
+        let win = lotto.entries.get(i);
         println!("win is {:?}", win);
         
         assert!(!win.is_none(), "No winnner lets get out of here");
-        self.closed = true;
+        lotto.closed = true;
         match win {
-            Some(x) => self.winner = x,
+            Some(x) => lotto.winner = x,
             None => panic!("No winners lets go")
         }
-        assert!(!self.winner.is_empty(),"No winner WTF");
-        println!("the winner is {:?}", self.winner);
-        Promise::new(self.winner.to_string()).transfer(self.prize_pool);
+        assert!(!lotto.winner.is_empty(),"No winner WTF");
+        println!("the winner is {:?}", lotto.winner);
+        Promise::new(lotto.winner.to_string()).transfer(lotto.prize_pool);
+        self.lotteries.insert(&(lotto_id as u64), &lotto);
+        lotto.winner
     }
 
     // pub fn winings_transfer_manual(self, winner: AccountId) {
     //     //only account owner. 
     // }
 
-    pub fn collect_charity(self, out:AccountId){
+    pub fn collect_charity(self, out:AccountId, lotto_id:u32){
         //owner only function
+        let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        assert!(lotto.closed == true, "Lotto not closed yet");
         assert!(env::signer_account_id() == self.owner_id, "Not the contract owner so stop right there");
         // calculate the storage and minus from the balance with some buffer. 
-        Promise::new(out).transfer(env::account_balance());
+        Promise::new(out).transfer(lotto.climate_pool); // saving 3% for storage 
     }
 
-    pub fn make_rand(&mut self)->u128{
-        self.rand = random_u128();
-        self.rand
+    // pub fn make_rand(&mut self)->u128{
+    //     self.rand = random_u128();
+    //     self.rand
+    // }
+
+    pub fn get_closed(self, lotto_id: u32) -> bool {
+        let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        lotto.closed 
     }
 
-    pub fn get_closed(self) -> bool {
-        self.closed 
+    pub fn get_winner(self, lotto_id: u32) -> String {
+        let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        lotto.winner.to_string()
     }
 
-    pub fn get_winner(self) -> AccountId {
-        self.winner
+    pub fn get_prize_pool(self, lotto_id: u32) -> Balance{
+        let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        lotto.prize_pool
     }
 
-    pub fn get_prize_pool(self) -> Balance{
-        self.prize_pool
+    pub fn get_entries(self, lotto_id: u32) -> u64 {
+        let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        lotto.entries.len()
     }
-
-    pub fn get_entries(self) -> u64 {
-        self.entries.len()
+    pub fn get_lotto_list(self) -> u64 {//UnorderedMap<u64,NearLotto>{
+        self.lotteries.len()
     }
+    // pub fn get_lotto(self, lotto_id: u32) -> Struct{
+    //     let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+    //     return lotto
+    // }
 
     // `match` is similar to `switch` in other languages; 
     // Learn more: https://doc.rust-lang.org/book/ch06-02-match.html#matching-with-optiont
@@ -200,43 +244,48 @@ mod tests {
     // }
 
     #[test]
-    fn enter_the_draw() {
+    fn create_lotto_and_enter_the_draw() {
         let mut context = get_context(vec![], false);
         context.attached_deposit = ONE_NEAR;
         testing_env!(context);
-        let mut contract = NearLotto::new(env::signer_account_id());
-        contract.enter_draw();
-    }
-
-    #[test]
-    fn get_the_prize_pool() {
-        let context = get_context(vec![], false);
-        testing_env!(context);
-        let contract = NearLotto::new(env::signer_account_id());
-        let prize = contract.get_prize_pool();
+        let mut contract = LottoList::new(env::signer_account_id());
+        contract.add_lotto(env::signer_account_id(), 1, 1638965117);
+        contract.enter_draw(0);
+        //let winner = contract.pick_winner(0);
+        let prize = contract.get_prize_pool(0);
         println!("the Prize is: {}", prize);
+        //println!("the winner is: {}", winner);
     }
 
-    #[test]
-    fn get_the_entires() {
-        let context = get_context(vec![], false);
-        testing_env!(context);
-        let contract = NearLotto::new(env::signer_account_id());
-        let entries = contract.get_entries();
-        println!("the Entries are: {:?}", entries);
-    }
-    #[test]
-    fn new_enter_check_prize_entries(){
-        let context = get_context(vec![], false);
-        testing_env!(context);
-        let mut contract = NearLotto::new(env::signer_account_id());
-        println!("Enter");
-        contract.enter_draw();
-        // let prize = contract.get_prize_pool();
-        // println!("the Prize is: {}", prize);
-        let entries = contract.get_entries();
-        println!("the Entries are: {:?}", entries);
-    }
+    // #[test]
+    // fn get_the_prize_pool() {
+    //     let context = get_context(vec![], false);
+    //     testing_env!(context);
+    //     let contract = NearLotto::new(env::signer_account_id());
+    //     let prize = contract.get_prize_pool();
+    //     println!("the Prize is: {}", prize);
+    // }
+
+    // #[test]
+    // fn get_the_entires() {
+    //     let context = get_context(vec![], false);
+    //     testing_env!(context);
+    //     let contract = NearLotto::new(env::signer_account_id());
+    //     let entries = contract.get_entries();
+    //     println!("the Entries are: {:?}", entries);
+    // }
+    // #[test]
+    // fn new_enter_check_prize_entries(){
+    //     let context = get_context(vec![], false);
+    //     testing_env!(context);
+    //     let mut contract = NearLotto::new(env::signer_account_id());
+    //     println!("Enter");
+    //     contract.enter_draw();
+    //     // let prize = contract.get_prize_pool();
+    //     // println!("the Prize is: {}", prize);
+    //     let entries = contract.get_entries();
+    //     println!("the Entries are: {:?}", entries);
+    // }
     // #[test]
     // fn new_enter_winner(){
     //     let context = get_context(vec![], false);

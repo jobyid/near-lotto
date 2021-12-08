@@ -5,8 +5,8 @@ beforeAll(async function () {
   const near = await nearlib.connect(nearConfig)
   window.accountId = nearConfig.contractName
   window.contract = await near.loadContract(nearConfig.contractName, {
-    viewMethods: ['get_prize_pool'],
-    changeMethods: ['make_rand', 'new', 'enter_draw'],
+    viewMethods: ['get_prize_pool', 'get_lotto_list'],
+    changeMethods: ['make_rand', 'new', 'enter_draw', 'add_lotto'],
     sender: window.accountId
   })
 
@@ -31,10 +31,15 @@ beforeAll(async function () {
 // });
 test('new', async () => {
   let contract = await window.contract.new({owner_id: window.accountId})
-  await window.contract.enter_draw({},300000000000000,1000000000000000000000000)
-  const new_lotto = await window.contract.get_prize_pool()
-  console.log("Something seems to have happened")
-  console.log(new_lotto)
+  await window.contract.add_lotto({owner_id: window.accountId, entry_fee: 1, close_date_time: 1638965117})
+  let list = await window.contract.get_lotto_list()
+  //console.log("number of loteries: ", list)
+  //let l1 = await window.contract.get_lotto({lotto_id:0})
+  //console.log(l1)
+  //await window.contract.enter_draw(0)
+  //const new_lotto = await window.contract.get_prize_pool()
+  //console.log("Something seems to have happened")
+  //console.log(new_lotto)
 });
 // test('get_prize_pool', async () => {
 //   const contract = await window.contract.new({owner_id: window.accountId})

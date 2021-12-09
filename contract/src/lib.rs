@@ -2,6 +2,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, setup_alloc, Promise, AccountId, Balance,json_types::{ U128, Base58PublicKey }};
 use near_sdk::collections::{ Vector, UnorderedMap};
+use near_sdk::serde::{Serialize, Deserialize};
 //use near_sdk::serde::Serialize;
 setup_alloc!();
 //#[global_allocator]
@@ -17,11 +18,12 @@ pub struct LottoList{
     lotteries: UnorderedMap<u64,NearLotto>,
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct NearLotto {
     lotto_id: u64,
     owner_id: AccountId,
-    entries: Vector<AccountId>, //UnorderedMap<u64, AccountId>,
+    entries: Vec<AccountId>, //UnorderedMap<u64, AccountId>,
     entry_fee: Balance,
     prize_pool: Balance, 
     climate_pool: Balance,
@@ -55,7 +57,7 @@ impl LottoList {
         let lotto = NearLotto {
             lotto_id: self.lotteries.len(),
             owner_id,
-            entries: Vector::new(b'e'),  //UnorderedMap::new(b"entries".to_vec()),
+            entries: Vec::new(),  //UnorderedMap::new(b"entries".to_vec()),
             entry_fee: (entry_fee as u128) * ONE_NEAR, 
             prize_pool: 0,
             climate_pool:0,
@@ -79,11 +81,11 @@ impl LottoList {
         let attached = env::attached_deposit();
         assert!(lotto.closed == false, "Lotto closed");
         assert!(attached >= lotto.entry_fee, "Entry fee not enough");
-        assert!(lotto.entries.len() < MAX_ENTRIES, "Entries are full");
+        assert!(lotto.entries.len() < MAX_ENTRIES as usize, "Entries are full");
         env::log(format!("money matches, add entry").as_bytes());
         lotto.prize_pool = lotto.prize_pool + (env::attached_deposit()/4)*3; // 75% of entries fees goes into prize pool 
         lotto.climate_pool = lotto.climate_pool + (env::attached_deposit()/4)*3; //25% of entries go to climate change
-        lotto.entries.push(&env::signer_account_id()); //self.entries.insert(&k, &near_sdk::env::signer_account_id());
+        lotto.entries.push(env::signer_account_id()); //self.entries.insert(&k, &near_sdk::env::signer_account_id());
         env::log(format!("{} Entering the lottery", env::signer_account_id()).as_bytes());
         self.lotteries.insert(&(lotto_id as u64), &lotto);
     }
@@ -101,16 +103,16 @@ impl LottoList {
         println!("Rand is {:?}", rand);
         println!("len is {:?}", len);
         let mut i = (rand%len)as u64;
-        if i == lotto.entries.len(){
+        if i == lotto.entries.len() as u64{
             i = i-1
         }
-        let win = lotto.entries.get(i);
+        let win = lotto.entries.get(i as usize);
         println!("win is {:?}", win);
         
         assert!(!win.is_none(), "No winnner lets get out of here");
         lotto.closed = true;
         match win {
-            Some(x) => lotto.winner = x,
+            Some(x) => lotto.winner = x.to_string(),
             None => panic!("No winners lets go")
         }
         assert!(!lotto.winner.is_empty(),"No winner WTF");
@@ -155,15 +157,15 @@ impl LottoList {
 
     pub fn get_entries(self, lotto_id: u32) -> u64 {
         let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
-        lotto.entries.len()
+        lotto.entries.len() as u64
     }
     pub fn get_lotto_list(self) -> u64 {//UnorderedMap<u64,NearLotto>{
         self.lotteries.len()
     }
-    // pub fn get_lotto(self, lotto_id: u32) -> Struct{
-    //     let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
-    //     return lotto
-    // }
+    pub fn get_lotto(self, lotto_id: u32) -> NearLotto{
+        let lotto = self.lotteries.get(&(lotto_id as u64)).unwrap();
+        return lotto
+    }
 
     // `match` is similar to `switch` in other languages; 
     // Learn more: https://doc.rust-lang.org/book/ch06-02-match.html#matching-with-optiont
